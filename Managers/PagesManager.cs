@@ -32,6 +32,7 @@ namespace Headless.Core.Managers
             {
                 Id = Guid.NewGuid(),
                 Title = pagePL.Title,
+                Route = pagePL.Route,
                 Body = pagePL.Body,
                 LangId = pagePL.LangId != Guid.Empty ? pagePL.LangId : Guid.Empty,
                 Lang = DbContext.Languages.First(lng => lng.Id == pagePL.LangId)

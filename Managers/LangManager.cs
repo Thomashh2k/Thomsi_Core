@@ -15,7 +15,8 @@ namespace Headless.Core.Managers
         public Task<Lang> CreateLang(CreateLanuagePL langPL);
         public Task<PaginatedList<Lang>> GetPaginatedLang(int count, int pageIndex, int pageSize);
         public Task<Lang> GetSingleLangById(Guid id);
-        public Lang UpdateLang(Lang updatedLang);
+        public Task<Lang> UpdateLang(Lang updatedLang);
+        public Task<bool> DeleteLang(Guid id);
     }
     public class LangManager : ILangManager
     {
@@ -40,6 +41,29 @@ namespace Headless.Core.Managers
 
         }
 
+        public async Task<bool> DeleteLang(Guid id)
+        {
+            try
+            {
+                Lang lang = DbContext.Languages.Find(id);
+                if(lang != null)
+                {
+                    DbContext.Languages.Remove(lang);
+                    await DbContext.SaveChangesAsync();
+                    return true;
+                }
+                else
+                {
+                    return true;
+                }
+
+            }
+            catch(Exception ex)
+            {
+                throw ex;
+            }
+        }
+
         public async Task<PaginatedList<Lang>> GetPaginatedLang(int count, int pageIndex, int pageSize)
         {
             return new PaginatedList<Lang>(DbContext.Languages.ToList(), count, pageIndex, pageSize);
@@ -47,7 +71,7 @@ namespace Headless.Core.Managers
 
         public async Task<Lang> GetSingleLangById(Guid id) => DbContext.Languages.Find(id);
 
-        public Lang UpdateLang(Lang updatedLang)
+        public async Task<Lang> UpdateLang(Lang updatedLang)
         {
             Lang lang = DbContext.Languages.FirstOrDefault(lng => lng.Id == updatedLang.Id);
 
@@ -55,6 +79,7 @@ namespace Headless.Core.Managers
             lang.LanguageIdentifier = (updatedLang.LanguageIdentifier != "") ? updatedLang.LanguageIdentifier : lang.LanguageIdentifier;
 
             DbContext.Languages.Update(lang);
+            await DbContext.SaveChangesAsync();
 
             return lang;
         }
