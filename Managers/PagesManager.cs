@@ -15,7 +15,9 @@ namespace Headless.Core.Managers
         public Task<Page> CreatePage(CreatePagePL routePL);
         public Task<PaginatedList<Page>> GetPaginatedPagesForTables(int count, int pageIndex, int pageSize);
         public Task<PaginatedList<Page>> GetPaginatedPages(int count, int pageIndex, int pageSize);
-        public Task<PaginatedList<Page>> GetPage(int count, int pageIndex, int pageSize);
+        public Task<Page> GetPage(Guid id);
+        public Task<Page> UpdatePage(Guid id, Page updatedPage);
+        public Task<bool> DeletePage(Guid id);
     }
     public class PagesManager : IPagesManager
     {
@@ -65,9 +67,44 @@ namespace Headless.Core.Managers
             throw new NotImplementedException();
         }
 
-        public Task<PaginatedList<Page>> GetPage(int count, int pageIndex, int pageSize)
+        public async Task<Page> GetPage(Guid id) => await DbContext.Pages.FindAsync(id);
+
+        public async Task<Page> UpdatePage(Guid id, Page updatedPage)
         {
-            throw new NotImplementedException();
+            Page page = DbContext.Pages.FirstOrDefault(pg => pg.Id == id);
+
+            page.Title = (updatedPage.Title != "") ? updatedPage.Title : page.Title;
+            page.Route = (updatedPage.Route != "") ? updatedPage.Route : page.Route;
+            page.Body = (updatedPage.Body != "") ? updatedPage.Body : page.Body;
+            page.LangId = (updatedPage.LangId != Guid.Empty) ? updatedPage.LangId : page.LangId;
+
+            DbContext.Pages.Update(page);
+            await DbContext.SaveChangesAsync();
+
+            return page;
+        }
+
+        public async Task<bool> DeletePage(Guid id)
+        {
+            try
+            {
+                Page page = DbContext.Pages.Find(id);
+                if (page != null)
+                {
+                    DbContext.Pages.Remove(page);
+                    await DbContext.SaveChangesAsync();
+                    return true;
+                }
+                else
+                {
+                    return true;
+                }
+
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
         }
     }
 }

@@ -15,7 +15,7 @@ namespace Headless.Core.Managers
         public Task<Lang> CreateLang(CreateLanuagePL langPL);
         public Task<PaginatedList<Lang>> GetPaginatedLang(int count, int pageIndex, int pageSize);
         public Task<Lang> GetSingleLangById(Guid id);
-        public Task<Lang> UpdateLang(Lang updatedLang);
+        public Task<Lang> UpdateLang(Guid id, Lang updatedLang);
         public Task<bool> DeleteLang(Guid id);
     }
     public class LangManager : ILangManager
@@ -71,9 +71,9 @@ namespace Headless.Core.Managers
 
         public async Task<Lang> GetSingleLangById(Guid id) => DbContext.Languages.Find(id);
 
-        public async Task<Lang> UpdateLang(Lang updatedLang)
+        public async Task<Lang> UpdateLang(Guid id, Lang updatedLang)
         {
-            Lang lang = DbContext.Languages.FirstOrDefault(lng => lng.Id == updatedLang.Id);
+            Lang lang = DbContext.Languages.FirstOrDefault(lng => lng.Id == id);
 
             lang.LanguageName = (updatedLang.LanguageName != "") ? updatedLang.LanguageName : lang.LanguageName;
             lang.LanguageIdentifier = (updatedLang.LanguageIdentifier != "") ? updatedLang.LanguageIdentifier : lang.LanguageIdentifier;
