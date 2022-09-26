@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Headless.Core.Payloads
 {
-    public class CreatePagePL
+    public class PagePL
     {
         public string Title { get; set; }
         public string Route { get; set; }

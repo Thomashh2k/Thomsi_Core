@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Headless.Core.Payloads
 {
-    public class CreateLanuagePL
+    public class LanuagePL
     {
         public string LanguageName { get; set; }
         public string LanguageIdentifier { get; set; }

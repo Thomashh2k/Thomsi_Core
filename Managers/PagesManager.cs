@@ -12,7 +12,7 @@ namespace Headless.Core.Managers
 {
     public interface IPagesManager
     {
-        public Task<Page> CreatePage(CreatePagePL routePL);
+        public Task<Page> CreatePage(PagePL routePL);
         public Task<PaginatedList<Page>> GetPaginatedPagesForTables(int count, int pageIndex, int pageSize);
         public Task<PaginatedList<Page>> GetPaginatedPages(int count, int pageIndex, int pageSize);
         public Task<Page> GetPage(Guid id);
@@ -27,9 +27,8 @@ namespace Headless.Core.Managers
             DbContext = dbContext;
         }
 
-        public async Task<Page> CreatePage(CreatePagePL pagePL)
+        public async Task<Page> CreatePage(PagePL pagePL)
         {
-            //FKs Cant be null this needs to be fixed
             Page newPage = new Page
             {
                 Id = Guid.NewGuid(),
@@ -37,7 +36,7 @@ namespace Headless.Core.Managers
                 Route = pagePL.Route,
                 Body = pagePL.Body,
                 LangId = pagePL.LangId != Guid.Empty ? pagePL.LangId : Guid.Empty,
-                Lang = DbContext.Languages.First(lng => lng.Id == pagePL.LangId)
+                Lang = DbContext.Languages.Find(pagePL.LangId)
             };
 
             DbContext.Pages.Add(newPage);
@@ -58,7 +57,7 @@ namespace Headless.Core.Managers
                 Pages[i].Lang = pageLang;
             }
 
-            return new PaginatedList<Page>(DbContext.Pages.ToList(), count, pageIndex, pageSize);
+            return new PaginatedList<Page>(Pages, count, pageIndex, pageSize);
 
         }
 
@@ -71,7 +70,7 @@ namespace Headless.Core.Managers
 
         public async Task<Page> UpdatePage(Guid id, Page updatedPage)
         {
-            Page page = DbContext.Pages.FirstOrDefault(pg => pg.Id == id);
+            Page page = DbContext.Pages.Find(id);
 
             page.Title = (updatedPage.Title != "") ? updatedPage.Title : page.Title;
             page.Route = (updatedPage.Route != "") ? updatedPage.Route : page.Route;
