@@ -4,18 +4,25 @@ using Headless.DB.DataObj;
 using Headless.DB.Tables;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using Npgsql;
+using Npgsql.PostgresTypes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Headless.Core.Managers
 {
     public interface ICustomFormManager
     {
+        public Task<CustomForm> GetCustomForm(Guid id);
+        public Task<List<CustomForm>> GetCustomForms();
+        public Task<List<string>> GetCustomFormData(Guid id);
         public Task<CustomForm> CreateCustomForm(CustomFormPL newCustomForm);
         public Task<CustomForm> UpdateCustomForm(Guid id, CustomFormPL newCustomForm);
         public void DeleteCustomForm(CustomForm newCustomForm);
@@ -39,7 +46,11 @@ namespace Headless.Core.Managers
                 
             };
 
-            string createTableSQLCommand = "CREATE TABLE cf_" + customForm.FormName + "(" +
+            CustomForm foundForm = DbContext.CustomForms.FirstOrDefault(cf => cf.FormName == customForm.FormName);
+            if (foundForm != null)
+                throw new Exception("FormName is used. Choosse a different name");
+
+            string createTableSQLCommand = "CREATE TABLE cf_" + Regex.Replace(customForm.FormName, @"\s+", "") + "(" +
                 "ID UUID PRIMARY KEY NOT NULL,";
             List<string> serializedInputs = new List<string>();
 
@@ -59,20 +70,27 @@ namespace Headless.Core.Managers
             customForm.Inputs = serializedInputs.ToArray();
 
             DbContext.CustomForms.Add(customForm);
-
-            await using var conn = new NpgsqlConnection(Configuration["DbConnectionString"]);
-            await conn.OpenAsync();
-
-
-            await using (var cmd = new NpgsqlCommand(createTableSQLCommand, conn))
+            try
             {
-                await cmd.ExecuteNonQueryAsync();
+                await using var conn = new NpgsqlConnection(Configuration["DbConnectionString"]);
+                await conn.OpenAsync();
+
+
+                await using (var cmd = new NpgsqlCommand(createTableSQLCommand, conn))
+                {
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                //Not sure if we need to wait for the execution
+                await conn.CloseAsync();
+
+            }
+            catch(Exception ex)
+            {
+                throw ex;
             }
 
             await DbContext.SaveChangesAsync();
-            //Not sure if we need to wait for the execution
-            await conn.CloseAsync();
-
             return customForm;
         }
 
@@ -108,16 +126,17 @@ namespace Headless.Core.Managers
 
             }
 
-            string deleteColumnsSQLCommand = "ALTER TABLE cf_" + customForm.FormName;
-            string addColumnsSQLCommand = "ALTER TABLE cf_" + customForm.FormName;
+            string deleteColumnsSQLCommand = "ALTER TABLE cf_" + Regex.Replace(customForm.FormName, @"\s+", "");
+            string addColumnsSQLCommand = "ALTER TABLE cf_" + Regex.Replace(customForm.FormName, @"\s+", "");
 
             for (int i = 0; i < inputsToBeDeleted.Count; i++)
             {
                 deleteColumnsSQLCommand += " DROP COLUMN " + inputsToBeDeleted[i].InputName;
                 if (inputsToBeDeleted.Count - 1 != i)
                     deleteColumnsSQLCommand += ",";
-
-                var foundInput = customFormInputsDeserialized.Find(i => i.InputName == inputsToBeDeleted[i].InputName);
+                // Strange errer when putting the line below directly in the .Find method
+                var inputName = inputsToBeDeleted[i].InputName;
+                var foundInput = customFormInputsDeserialized.Find(i => i.InputName == inputName);
                 customFormInputsDeserialized.Remove(foundInput);
             }
             deleteColumnsSQLCommand += ';';
@@ -131,18 +150,26 @@ namespace Headless.Core.Managers
             }
             addColumnsSQLCommand += ';';
 
-            await using var conn = new NpgsqlConnection(Configuration["DbConnectionString"]);
-            await conn.OpenAsync();
 
-
-            await using (var cmd = new NpgsqlCommand(deleteColumnsSQLCommand, conn))
+            try
             {
-                await cmd.ExecuteNonQueryAsync();
+                await using var conn = new NpgsqlConnection(Configuration["DbConnectionString"]);
+                await conn.OpenAsync();
+                await using (var cmd = new NpgsqlCommand(deleteColumnsSQLCommand, conn))
+                {
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                await using (var cmd = new NpgsqlCommand(addColumnsSQLCommand, conn))
+                {
+                    await cmd.ExecuteNonQueryAsync();
+                }
+                await conn.CloseAsync();
+
             }
-
-            await using (var cmd = new NpgsqlCommand(addColumnsSQLCommand, conn))
+            catch(Exception ex)
             {
-                await cmd.ExecuteNonQueryAsync();
+                throw ex;
             }
 
             List<string> serializedInputs = new List<string>();
@@ -157,7 +184,6 @@ namespace Headless.Core.Managers
             DbContext.CustomForms.Update(customForm);
 
             await DbContext.SaveChangesAsync();
-            await conn.CloseAsync();
 
             return customForm;
 
@@ -166,6 +192,88 @@ namespace Headless.Core.Managers
         public void DeleteCustomForm(CustomForm newCustomForm)
         {
             throw new NotImplementedException();
+        }
+
+        public async Task<List<CustomForm>> GetCustomForms() => DbContext.CustomForms.ToList();
+        public async Task<CustomForm> GetCustomForm(Guid id) => DbContext.CustomForms.Find(id);
+        public async Task<List<string>> GetCustomFormData(Guid id)
+        {
+            CustomForm customForm = DbContext.CustomForms.Find(id);
+            if (customForm == null)
+                throw new Exception("CustomForm not found");
+
+            string getCustomFormDataSQLCommand = "SELECT * FROM cf_" + Regex.Replace(customForm.FormName, @"\s+", "") + ";";
+            List<string> customFormData = new List<string>();
+            await using var conn = new NpgsqlConnection(Configuration["DbConnectionString"]);
+            await conn.OpenAsync();
+
+            try
+            {
+                await using (var cmd = new NpgsqlCommand(getCustomFormDataSQLCommand, conn))
+                await using (var reader = await cmd.ExecuteReaderAsync())
+                {
+                    if (reader.HasRows)
+                    {
+                        while (await reader.ReadAsync())
+                        {
+
+                            for(ulong i = 0; i <= reader.Rows; i++)
+                            {
+                                string row = "{";
+                                if(reader.GetDataTypeName(0) == "uuid")
+                                {
+                                    row += "\"ID\":\"" + reader.GetGuid(0).ToString() + "\",";
+                                }
+                                //-1 to ignore the ID column
+                                //Refactor x+1 because its hardly to understand
+                                for (int x = 0; x < reader.VisibleFieldCount-1; x++)
+                                {
+                                    var input = Input.DeserializeInput(customForm.Inputs[x]);
+                                    var text = reader.GetDataTypeName(x + 1);
+                                    if (reader.GetDataTypeName(x + 1) == "text")
+                                    {
+                                        row += '\"' + input.InputName + "\": \"" + reader.GetString(x+1).ToString();
+                                    }
+                                    else if (reader.GetDataTypeName(x+1) == "boolean")
+                                    {
+                                        row += '\"' + input.InputName + "\": \"" + reader.GetString(x+1).ToString();
+                                    }
+                                    else if (reader.GetDataTypeName(x+1) == "timestamp")
+                                    {
+                                        row += '\"' + input.InputName + "\": \"" + reader.GetString(x+1).ToString();
+                                    }
+                                    else if (reader.GetDataTypeName(x+1) == "time")
+                                    {
+                                        row += '\"' + input.InputName + "\": \"" + reader.GetString(x+1).ToString();
+                                    }
+                                    row += "\",";
+                                }
+                                var finalRow = row.Remove(row.Length - 1);
+                                finalRow += '}';
+                                customFormData.Add(finalRow);
+
+                            }
+
+
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            await conn.CloseAsync();
+            //string JsonArray = "";
+            //for (int i = 0; i < customFormData.Count; i++)
+            //{
+            //    JsonArray += customFormData[i] + ',';
+
+            //}
+            // var test1 = JsonConvert.DeserializeObject<object>(customFormData[);
+            // var test2 = JsonSerializer.Serialize(customFormData);
+            return customFormData;
         }
     }
 }

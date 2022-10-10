@@ -10,7 +10,7 @@ namespace Headless.Core.Payloads
     public class InputPL
     {
         public string InputName { get; set; }
-        public long InputLength { get; set; }
+        public long? InputLength { get; set; }
         public bool NotNullable { get; set; }
         public InputType InputType { get; set; }
         public bool Delete { get; set; }
