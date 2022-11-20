@@ -26,6 +26,8 @@ namespace Headless.Core.Managers
         public Task<CustomForm> CreateCustomForm(CustomFormPL newCustomForm);
         public Task<CustomForm> UpdateCustomForm(Guid id, CustomFormPL newCustomForm);
         public void DeleteCustomForm(CustomForm newCustomForm);
+        public Task<string> PostCustomFormData(string formName, string json);
+
     }
     public class CustomFormManager : ICustomFormManager
     {
@@ -274,6 +276,18 @@ namespace Headless.Core.Managers
             // var test1 = JsonConvert.DeserializeObject<object>(customFormData[);
             // var test2 = JsonSerializer.Serialize(customFormData);
             return customFormData;
+        }
+        public async Task<string> PostCustomFormData(string formName, string json)
+        {
+            dynamic dynJson = JsonConvert.DeserializeObject(json);
+            string columns = "(";
+            foreach(var item in dynJson)
+            {
+                columns += item.ToString() + ',';
+            }
+            columns += ")";
+            string postDataSQLCommand = "INSERT INTO cf_" + formName + columns;
+            return postDataSQLCommand;
         }
     }
 }

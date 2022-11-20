@@ -16,7 +16,7 @@ namespace Headless.Core.Managers
         public Task<PaginatedList<Page>> GetPaginatedPagesForTables(int count, int pageIndex, int pageSize);
         public Task<PaginatedList<Page>> GetPaginatedPages(int count, int pageIndex, int pageSize);
         public Task<Page> GetPage(Guid id);
-        public Task<Page> UpdatePage(Guid id, Page updatedPage);
+        public Task<Page> UpdatePage(Guid id, PagePL updatedPage);
         public Task<bool> DeletePage(Guid id);
     }
     public class PagesManager : IPagesManager
@@ -29,16 +29,13 @@ namespace Headless.Core.Managers
 
         public async Task<Page> CreatePage(PagePL pagePL)
         {
+            Guid PageID = Guid.NewGuid();
             Page newPage = new Page
             {
-                Id = Guid.NewGuid(),
+                Id = PageID,
                 Title = pagePL.Title,
                 Route = pagePL.Route,
-                Body = pagePL.Body,
-                LangId = pagePL.LangId != Guid.Empty ? pagePL.LangId : Guid.Empty,
-                Lang = DbContext.Languages.Find(pagePL.LangId)
             };
-
             DbContext.Pages.Add(newPage);
             await DbContext.SaveChangesAsync();
 
@@ -49,14 +46,6 @@ namespace Headless.Core.Managers
         public async Task<PaginatedList<Page>> GetPaginatedPagesForTables(int count, int pageIndex, int pageSize)
         {
             List<Page> Pages = DbContext.Pages.ToList();
-
-            for(var i = 0; i < Pages.Count; i++)
-            {
-                Pages[i].Body = "";
-                Lang? pageLang = await DbContext.Languages.FindAsync(Pages[i].LangId);
-                Pages[i].Lang = pageLang;
-            }
-
             return new PaginatedList<Page>(Pages, count, pageIndex, pageSize);
 
         }
@@ -68,14 +57,12 @@ namespace Headless.Core.Managers
 
         public async Task<Page> GetPage(Guid id) => await DbContext.Pages.FindAsync(id);
 
-        public async Task<Page> UpdatePage(Guid id, Page updatedPage)
+        public async Task<Page> UpdatePage(Guid id, PagePL updatedPage)
         {
             Page page = DbContext.Pages.Find(id);
 
             page.Title = (updatedPage.Title != "") ? updatedPage.Title : page.Title;
             page.Route = (updatedPage.Route != "") ? updatedPage.Route : page.Route;
-            page.Body = (updatedPage.Body != "") ? updatedPage.Body : page.Body;
-            page.LangId = (updatedPage.LangId != Guid.Empty) ? updatedPage.LangId : page.LangId;
 
             DbContext.Pages.Update(page);
             await DbContext.SaveChangesAsync();
